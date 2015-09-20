@@ -1,0 +1,50 @@
+How we use cache
+
+2015/09/21
+
+Hsinho Yeh
+yhh92u@gmail.com
+
+* Background
+- We have at least many VMs running at any moment
+- We have many users and keep growing
+- Users have documents, profiles, and other meta data.
+
+* Reality
+- Our system is read heavily.
+- If we can ask everyone to use cache heavily, it will get things even worse.
+- Because we only have few Gigabyte memory for caching, i.e. few kilobyte bytes per user on average.
+
+* Question
+- how to increase cache hit rate without having extra expedition ?
+
+* Groupcache
+.link https://github.com/golang/groupcache
+- Group-based cache-filling library.
+- Each VM can contribute spaces to groups, the spaces are used for caching group data.
+- Used inside Google, should be production ready
+- But the original design only support immutable data.
+
+* GroupcacheLRU
+- A extended library of groupcache, which support generic caching interface, i.e. read/write operations.
+- Each Write eventually creates a new version, which is used when reading.
+- We store versions into our caching storage, leave blob data inside groupcache.
+- Version number basically costs nothing but 8 bytes, we can have many many of them.
+
+* How GroupcacheLRU works
+- When Get
+`
+func Get($key) {
+    $ver = version($key)
+    return groupcache.Get($key, $ver)
+}
+`
+
+- When Set
+`
+func Set($key, $value) {
+    $ver = bumpVersion($key)
+    redis.Set($key, $ver, $value)
+    return groupcache.GetFrom($key, $ver, redis.Get)
+}
+`
